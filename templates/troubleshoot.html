@@ -1,0 +1,80 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="p-5 mb-4 bg-light rounded-3">
+    <div class="container-fluid py-5">
+        <h1 class="display-5 fw-bold">Troubleshooting</h1>
+        <p class="col-md-8 fs-4">
+            This page helps diagnose issues with the Web to PDF converter.
+        </p>
+        
+        <div class="mt-4">
+            <h2>System Information</h2>
+            <table class="table">
+                <tbody>
+                    {% for key, value in results.system_info.items() %}
+                    <tr>
+                        <th scope="row">{{ key|replace('_', ' ')|title }}</th>
+                        <td>{{ value }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            
+            <h2>wkhtmltopdf Check</h2>
+            {% if results.wkhtmltopdf_check.status == 'found' %}
+                <div class="alert alert-success">
+                    <h4 class="alert-heading">wkhtmltopdf Found!</h4>
+                    <p>Location: {{ results.wkhtmltopdf_check.path }}</p>
+                    <p>Version: {{ results.wkhtmltopdf_check.version }}</p>
+                </div>
+            {% else %}
+                <div class="alert alert-danger">
+                    <h4 class="alert-heading">wkhtmltopdf Not Found!</h4>
+                    <p>{{ results.wkhtmltopdf_check.error }}</p>
+                    <hr>
+                    <p class="mb-0">Please install wkhtmltopdf before using this application:</p>
+                    <ul>
+                        <li><strong>Windows:</strong> Download and install from <a href="https://wkhtmltopdf.org/downloads.html" target="_blank">wkhtmltopdf.org</a></li>
+                        <li><strong>macOS:</strong> Run <code>brew install wkhtmltopdf</code> if you have Homebrew installed</li>
+                        <li><strong>Linux:</strong> Run <code>sudo apt-get install wkhtmltopdf</code> on Debian/Ubuntu or <code>sudo yum install wkhtmltopdf</code> on CentOS/RHEL</li>
+                    </ul>
+                </div>
+            {% endif %}
+            
+            <h2>Python Dependencies</h2>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Package</th>
+                        <th>Status</th>
+                        <th>Version</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pkg, info in results.dependencies.items() %}
+                    {% if pkg != 'error' %}
+                    <tr>
+                        <td>{{ pkg }}</td>
+                        <td>
+                            {% if info.status == 'installed' %}
+                            <span class="badge bg-success">Installed</span>
+                            {% else %}
+                            <span class="badge bg-danger">Missing</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ info.version if info.status == 'installed' else 'N/A' }}</td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% if results.dependencies.error is defined %}
+            <div class="alert alert-warning">
+                <p>Error checking dependencies: {{ results.dependencies.error }}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

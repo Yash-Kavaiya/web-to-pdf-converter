@@ -1,0 +1,70 @@
+<!-- templates/index.html -->
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="p-5 mb-4 bg-light rounded-3">
+    <div class="container-fluid py-5">
+        <h1 class="display-5 fw-bold">Convert Web Pages to PDF</h1>
+        <p class="col-md-8 fs-4">
+            Enter a URL below to convert it to PDF. Optionally, we can also scrape all links from the page and convert those to PDFs as well.
+        </p>
+        
+        <form action="{{ url_for('convert') }}" method="post" class="mt-4">
+            <div class="mb-3">
+                <label for="url" class="form-label">URL</label>
+                <input type="url" class="form-control" id="url" name="url" placeholder="https://example.com/documentation" required>
+                <div class="form-text">Enter the URL of the web page you want to convert to PDF.</div>
+            </div>
+            
+            <div class="mb-3">
+                <label for="max_depth" class="form-label">Process Linked Pages</label>
+                <select class="form-select" id="max_depth" name="max_depth">
+                    <option value="0">No, just convert the main page</option>
+                    <option value="1" selected>Yes, also convert linked pages</option>
+                </select>
+                <div class="form-text">Choose whether to also convert pages linked from the main page.</div>
+            </div>
+            
+            <div class="alert alert-info">
+                <strong>New Feature!</strong> The application now automatically creates a combined PDF containing all successfully generated PDFs.
+            </div>
+            
+            <button type="submit" class="btn btn-primary btn-lg">Convert to PDF</button>
+        </form>
+    </div>
+</div>
+
+<div class="row align-items-md-stretch">
+    <div class="col-md-6">
+        <div class="h-100 p-5 text-white bg-dark rounded-3">
+            <h2>How it works</h2>
+            <p>This tool fetches the HTML content of the provided URL and converts it to a PDF document.</p>
+            <p>If you choose to process linked pages, it will also extract all links from the main page and convert each of those pages to separate PDFs.</p>
+            <p>The tool is perfect for archiving documentation sites or saving web content for offline reading.</p>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="h-100 p-5 bg-light border rounded-3">
+            <h2>Tips</h2>
+            <ul>
+                <li>Make sure the URL is accessible and valid</li>
+                <li>For large documentation sites, processing all linked pages may take a while</li>
+                <li>Some sites may block web scraping, so results may vary</li>
+                <li>If you encounter issues, check the <a href="/troubleshoot">troubleshooting page</a></li>
+                <li>The tool processes up to 50 linked pages to avoid overload</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="alert alert-info mt-4">
+    <h4 class="alert-heading">First time setup</h4>
+    <p>This tool requires <strong>wkhtmltopdf</strong> to be installed on your system. If you're running the application for the first time, please make sure it's installed:</p>
+    <ul>
+        <li><strong>Windows:</strong> Download and install from <a href="https://wkhtmltopdf.org/downloads.html" target="_blank">wkhtmltopdf.org</a></li>
+        <li><strong>macOS:</strong> Run <code>brew install wkhtmltopdf</code> if you have Homebrew installed</li>
+        <li><strong>Linux:</strong> Run <code>sudo apt-get install wkhtmltopdf</code> on Debian/Ubuntu or <code>sudo yum install wkhtmltopdf</code> on CentOS/RHEL</li>
+    </ul>
+    <p>Check the <a href="/troubleshoot">troubleshooting page</a> to verify your installation.</p>
+</div>
+{% endblock %}

@@ -1,0 +1,265 @@
+{% extends 'layout.html' %}
+
+{% block content %}
+<div class="p-5 mb-4 bg-light rounded-3">
+    <div class="container-fluid py-5">
+        <h1 class="display-5 fw-bold">Job Status</h1>
+        <div id="status-container">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p id="status-text" class="fs-4 mt-3">Initializing...</p>
+        </div>
+        
+        <div id="main-pdf-container" class="mt-4 d-none">
+            <h2>Main Page PDF</h2>
+            <p>The PDF for the main page has been generated.</p>
+            <a id="main-pdf-link" href="#" class="btn btn-primary" target="_blank">Download PDF</a>
+        </div>
+        
+        <div id="merged-pdf-container" class="mt-4 d-none">
+            <h2>Combined PDF</h2>
+            <p>A single PDF containing all successfully converted pages has been generated.</p>
+            <a id="merged-pdf-link" href="#" class="btn btn-success" target="_blank">Download Combined PDF</a>
+        </div>
+        
+        <div id="main-pdf-error-container" class="mt-4 d-none">
+            <div class="alert alert-danger">
+                <h4 class="alert-heading">Main PDF Generation Failed</h4>
+                <p id="main-pdf-error-text">There was an error generating the PDF for the main page.</p>
+                <hr>
+                <p class="mb-0">Please check the troubleshooting page for more information.</p>
+            </div>
+        </div>
+        
+        <div id="progress-container" class="mt-4 d-none">
+            <h2>Linked Pages Progress</h2>
+            <div class="progress mb-3">
+                <div id="progress-bar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+            </div>
+            <p id="progress-text">Processing 0 of 0 URLs</p>
+        </div>
+        
+        <div id="results-container" class="mt-4 d-none">
+            <h2>Results</h2>
+            <div class="d-grid gap-2 d-md-flex justify-content-md-start mb-4">
+                <a id="back-button" href="/" class="btn btn-outline-secondary btn-lg px-4">Back to Home</a>
+                <form action="/merge/{{ job_id }}" method="post" class="d-inline">
+                    <button type="submit" class="btn btn-primary btn-lg px-4">Create Combined PDF</button>
+                </form>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <div class="card text-white bg-success">
+                        <div class="card-body">
+                            <h5 class="card-title">Success</h5>
+                            <p id="success-count" class="card-text display-6">0</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card text-white bg-danger">
+                        <div class="card-body">
+                            <h5 class="card-title">Failed</h5>
+                            <p id="failed-count" class="card-text display-6">0</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card text-white bg-primary">
+                        <div class="card-body">
+                            <h5 class="card-title">Total</h5>
+                            <p id="total-count" class="card-text display-6">0</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="pdf-list-container" class="mt-4">
+                <h3>Generated PDFs</h3>
+                <div class="list-group" id="pdf-list"></div>
+            </div>
+            
+            <div id="failed-urls-container" class="mt-4 d-none">
+                <h3>Failed URLs</h3>
+                <div class="alert alert-warning">
+                    <h4 class="alert-heading">PDF Generation Failures</h4>
+                    <p>Some URLs could not be converted to PDF. This is often due to one of the following:</p>
+                    <ul>
+                        <li>The URL requires authentication</li>
+                        <li>The site blocks web scrapers</li>
+                        <li>The page contains complex JavaScript that couldn't be rendered</li>
+                        <li>The wkhtmltopdf tool encountered an error</li>
+                    </ul>
+                </div>
+                <div class="accordion" id="failed-urls-accordion"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const jobId = "{{ job_id }}";
+    let statusInterval;
+    
+    function updateStatus() {
+        fetch(`/api/status/${jobId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                updateStatusUI(data);
+                
+                if (data.status === 'completed' || data.status === 'failed') {
+                    clearInterval(statusInterval);
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching status:', error);
+                document.getElementById('status-text').textContent = 'Error fetching status. Please refresh the page.';
+                clearInterval(statusInterval);
+            });
+    }
+    
+    function updateStatusUI(data) {
+        const statusText = document.getElementById('status-text');
+        const mainPdfContainer = document.getElementById('main-pdf-container');
+        const mergedPdfContainer = document.getElementById('merged-pdf-container');
+        const mainPdfErrorContainer = document.getElementById('main-pdf-error-container');
+        const progressContainer = document.getElementById('progress-container');
+        const resultsContainer = document.getElementById('results-container');
+        const failedUrlsContainer = document.getElementById('failed-urls-container');
+        
+        // Update status text
+        switch (data.status) {
+            case 'queued':
+                statusText.textContent = 'Job is queued. Waiting to start...';
+                break;
+            case 'processing':
+                statusText.textContent = 'Processing your request...';
+                break;
+            case 'completed':
+                statusText.textContent = 'Job completed successfully!';
+                document.querySelector('.spinner-border').classList.add('d-none');
+                break;
+            case 'failed':
+                statusText.textContent = `Job failed: ${data.error || 'Unknown error'}`;
+                document.querySelector('.spinner-border').classList.add('d-none');
+                break;
+        }
+        
+        // Update main PDF
+        if (data.main_pdf) {
+            mainPdfContainer.classList.remove('d-none');
+            const mainPdfLink = document.getElementById('main-pdf-link');
+            mainPdfLink.href = `/download/${jobId}/${data.main_pdf}`;
+        } else if (data.main_error) {
+            mainPdfErrorContainer.classList.remove('d-none');
+            const mainPdfErrorText = document.getElementById('main-pdf-error-text');
+            mainPdfErrorText.textContent = data.main_error;
+        }
+        
+        // Update merged PDF
+        if (data.merged_pdf) {
+            mergedPdfContainer.classList.remove('d-none');
+            const mergedPdfLink = document.getElementById('merged-pdf-link');
+            mergedPdfLink.href = `/download/${jobId}/${data.merged_pdf}`;
+        }
+        
+        // Update progress if processing linked pages
+        if (data.max_depth > 0 && data.total_urls) {
+            progressContainer.classList.remove('d-none');
+            
+            const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-text');
+            
+            const percentage = Math.round((data.processed_urls / data.total_urls) * 100);
+            progressBar.style.width = `${percentage}%`;
+            progressBar.setAttribute('aria-valuenow', percentage);
+            
+            progressText.textContent = `Processing ${data.processed_urls} of ${data.total_urls} URLs`;
+        }
+        
+        // Update results if job is completed
+        if (data.status === 'completed') {
+            resultsContainer.classList.remove('d-none');
+            
+            document.getElementById('success-count').textContent = data.successful_urls || 0;
+            document.getElementById('failed-count').textContent = data.failed_urls || 0;
+            document.getElementById('total-count').textContent = data.total_urls || 0;
+            
+            // Populate PDF list
+            const pdfList = document.getElementById('pdf-list');
+            pdfList.innerHTML = '';
+            
+            if (data.pdfs && data.pdfs.length > 0) {
+                data.pdfs.forEach(pdf => {
+                    const item = document.createElement('a');
+                    item.href = `/download/${jobId}/${pdf.filename}`;
+                    item.className = 'list-group-item list-group-item-action';
+                    item.setAttribute('target', '_blank');
+                    item.innerHTML = `
+                        <div class="d-flex w-100 justify-content-between">
+                            <h5 class="mb-1">${pdf.filename}</h5>
+                        </div>
+                        <p class="mb-1">${pdf.url}</p>
+                    `;
+                    pdfList.appendChild(item);
+                });
+            } else {
+                pdfList.innerHTML = '<div class="list-group-item">No PDFs were generated.</div>';
+            }
+            
+            // Show failed URLs details if any
+            if (data.failed_urls > 0 && data.failed_details && data.failed_details.length > 0) {
+                failedUrlsContainer.classList.remove('d-none');
+                const accordion = document.getElementById('failed-urls-accordion');
+                accordion.innerHTML = '';
+                
+                // Display first 10 failures
+                const displayCount = Math.min(10, data.failed_details.length);
+                for (let i = 0; i < displayCount; i++) {
+                    const failure = data.failed_details[i];
+                    const item = document.createElement('div');
+                    item.className = 'accordion-item';
+                    item.innerHTML = `
+                        <h2 class="accordion-header" id="heading${i}">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                                    data-bs-target="#collapse${i}" aria-expanded="false" aria-controls="collapse${i}">
+                                ${failure.url}
+                            </button>
+                        </h2>
+                        <div id="collapse${i}" class="accordion-collapse collapse" aria-labelledby="heading${i}" 
+                             data-bs-parent="#failed-urls-accordion">
+                            <div class="accordion-body">
+                                <strong>Error:</strong> ${failure.error || 'Unknown error'}
+                            </div>
+                        </div>
+                    `;
+                    accordion.appendChild(item);
+                }
+                
+                // Add a note if there are more failures
+                if (data.failed_details.length > displayCount) {
+                    const note = document.createElement('div');
+                    note.className = 'alert alert-info mt-3';
+                    note.textContent = `Showing ${displayCount} of ${data.failed_details.length} failures.`;
+                    accordion.appendChild(note);
+                }
+            }
+        }
+    }
+    
+    // Start polling for status updates
+    document.addEventListener('DOMContentLoaded', () => {
+        updateStatus();
+        statusInterval = setInterval(updateStatus, 2000);
+    });
+</script>
+{% endblock %}
